@@ -13,6 +13,7 @@ interface Post {
   photo_url: string
   pint_number: number
   created_at: string
+  is_milestone: boolean
 }
 
 interface FeedClientProps {
@@ -75,7 +76,7 @@ export default function FeedClient({ pseudo, initialPosts, initialTotal }: FeedC
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {posts.map(post => (
-                <PostCard key={post.id} post={post} />
+                <PostCard key={post.id} post={post} pseudo={pseudo} />
               ))}
             </div>
 
