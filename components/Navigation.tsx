@@ -30,7 +30,7 @@ export default function Navigation({ pseudo }: { pseudo: string }) {
             const active = pathname === link.href
             return (
               <Link key={link.href} href={link.href}
-                className={`flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl transition-colors min-w-[64px] ${
+                className={`flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl transition-colors min-w-[56px] ${
                   active ? 'text-amber-400' : 'text-gray-500'
                 }`}>
                 <span className="text-2xl leading-none">{link.label}</span>
@@ -41,14 +41,14 @@ export default function Navigation({ pseudo }: { pseudo: string }) {
             )
           })}
 
-          {/* Pseudo + déconnexion sur mobile */}
+          {/* Pseudo + déconnexion */}
           <div className="relative">
             <button
               onClick={() => setShowLogout(o => !o)}
-              className="flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl transition-colors min-w-[64px] text-gray-500"
+              className="flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl transition-colors min-w-[56px] text-gray-500"
             >
               <span className="text-2xl leading-none">👤</span>
-              <span className="text-[10px] font-semibold text-gray-600 max-w-[56px] truncate">{pseudo}</span>
+              <span className="text-[10px] font-semibold text-gray-600 max-w-[52px] truncate">{pseudo}</span>
             </button>
 
             {showLogout && (

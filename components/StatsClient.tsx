@@ -1,6 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
+import dynamic from 'next/dynamic'
+
+// Import dynamique pour éviter les erreurs SSR avec Leaflet
+const BarsMap = dynamic(() => import('@/components/BarsMap'), { ssr: false })
 
 interface StatsData {
   todayCount: number
@@ -50,25 +54,12 @@ export default function StatsClient({ currentPseudo }: { currentPseudo: string }
   const hours = Array.from({ length: 24 }, (_, i) => i)
   const maxHourCount = Math.max(...hours.map(h => stats.hourlyDistribution[h] || 0), 1)
 
-  // Heures affichées : uniquement celles avec au moins 1 pinte + voisines
-  const activeHours = hours.filter(h => (stats.hourlyDistribution[h] || 0) > 0)
-  const displayHours = activeHours.length > 0 ? hours.filter(h => {
-    return activeHours.some(ah => Math.abs(ah - h) <= 1)
-  }) : hours
-
-  // Temps moyen global
-  const allAvgValues = Object.values(stats.avgTimeBetween).filter((v): v is number => v !== null)
-  const globalAvg = allAvgValues.length > 0
-    ? Math.round(allAvgValues.reduce((a, b) => a + b, 0) / allAvgValues.length)
-    : null
-
   const dayStart = new Date(stats.todayRange.start)
   const dayEnd = new Date(stats.todayRange.end)
-  const dayLabel = dayStart.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
 
   return (
     <div className="space-y-6">
-      {/* Filtre */}
+      {/* Filtre par pseudo */}
       <div className="flex items-center gap-2 flex-wrap">
         <button
           onClick={() => setFilter('all')}
@@ -173,9 +164,7 @@ export default function StatsClient({ currentPseudo }: { currentPseudo: string }
                         height: `${Math.max(heightPct, count > 0 ? 4 : 0)}%`,
                         background: isPeak
                           ? 'linear-gradient(to top, #d97706, #fbbf24)'
-                          : count > 0
-                          ? '#374151'
-                          : 'transparent',
+                          : count > 0 ? '#374151' : 'transparent',
                       }}
                     />
                   </div>
@@ -188,6 +177,9 @@ export default function StatsClient({ currentPseudo }: { currentPseudo: string }
           </div>
         )}
       </div>
+
+      {/* Carte des bars */}
+      <BarsMap />
 
       {/* Total */}
       <p className="text-center text-gray-600 text-xs">
