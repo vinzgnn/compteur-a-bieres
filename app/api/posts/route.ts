@@ -27,6 +27,11 @@ const BADGE_DEFINITIONS = {
 }
 
 type BadgeType = keyof typeof BADGE_DEFINITIONS
+function normalizeLocation(input: string): string {
+  return input.trim()
+    .toLowerCase()
+    .replace(/\b\w/g, c => c.toUpperCase())
+}
 
 // GET : récupérer les posts (paginés)
 export async function GET(req: NextRequest) {
@@ -54,7 +59,7 @@ export async function POST(req: NextRequest) {
 
   const formData = await req.formData()
   const photo = formData.get('photo') as File | null
-  const location = (formData.get('location') as string)?.trim()
+  const location = normalizeLocation(formData.get('location') as string || '')
 
   if (!photo) return NextResponse.json({ error: 'Photo manquante' }, { status: 400 })
   if (!location) return NextResponse.json({ error: 'Lieu manquant' }, { status: 400 })
