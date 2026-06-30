@@ -21,17 +21,8 @@ export default async function ClassementPage() {
         {/* Pinte du mois */}
         <PinteduMois pseudo={pseudo} />
 
-        {/* Classement hebdo */}
-        <div>
-          <h2 className="text-amber-400 font-bold mb-3 text-sm uppercase tracking-wider">Cette semaine</h2>
-          <Leaderboard defaultType="week" />
-        </div>
-
-        {/* Classement global */}
-        <div>
-          <h2 className="text-amber-400 font-bold mb-3 text-sm uppercase tracking-wider">All-time</h2>
-          <Leaderboard defaultType="all" />
-        </div>
+        {/* Classement unique avec 3 onglets */}
+        <Leaderboard />
       </main>
     </div>
   )
