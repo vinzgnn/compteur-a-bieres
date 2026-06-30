@@ -8,27 +8,31 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const q = searchParams.get('q')?.trim() || ''
+  const type = searchParams.get('type') || 'bar' // 'bar' | 'city'
 
   if (q.length < 1) return NextResponse.json({ locations: [] })
 
   const supabase = createServerSupabase()
+  const column = type === 'city' ? 'city' : 'bar_name'
 
-  // Récupère les lieux distincts qui contiennent la recherche (insensible à la casse)
   const { data } = await supabase
     .from('posts')
-    .select('location')
-    .ilike('location', `%${q}%`)
+    .select(column)
+    .ilike(column, `%${q}%`)
+    .not(column, 'is', null)
     .order('created_at', { ascending: false })
     .limit(50)
 
-  // Dédoublonne et limite à 6 suggestions
+  // Dédoublonne (insensible à la casse) et limite à 6
   const seen = new Set<string>()
   const locations: string[] = []
   for (const row of data || []) {
-    const key = row.location.toLowerCase()
+    const val = (row as Record<string, string>)[column]
+    if (!val) continue
+    const key = val.toLowerCase()
     if (!seen.has(key)) {
       seen.add(key)
-      locations.push(row.location)
+      locations.push(val)
     }
     if (locations.length >= 6) break
   }

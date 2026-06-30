@@ -5,6 +5,7 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
+
 const MILESTONES = [50, 100, 250, 500, 1000, 2000, 5000]
 
 const MILESTONE_MESSAGES: Record<number, string> = {
@@ -60,6 +61,8 @@ export async function POST(req: NextRequest) {
   const formData = await req.formData()
   const photo = formData.get('photo') as File | null
   const location = normalizeLocation(formData.get('location') as string || '')
+  const bar_name = formData.get('bar_name') as string || ''
+  const city = formData.get('city') as string || ''
 
   if (!photo) return NextResponse.json({ error: 'Photo manquante' }, { status: 400 })
   if (!location) return NextResponse.json({ error: 'Lieu manquant' }, { status: 400 })
@@ -89,8 +92,7 @@ export async function POST(req: NextRequest) {
 
   const { data: post, error: insertError } = await supabase
     .from('posts')
-    .insert({ pseudo, member_id: member?.id ?? null, location, photo_url: publicUrl, pint_number: pintNumber, is_milestone: isMilestone })
-    .select().single()
+   .insert({ pseudo, member_id: member?.id ?? null, location, bar_name, city, photo_url: publicUrl, pint_number: pintNumber, is_milestone: isMilestone })
 
   if (insertError) return NextResponse.json({ error: 'Erreur lors de la sauvegarde' }, { status: 500 })
 
