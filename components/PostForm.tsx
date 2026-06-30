@@ -12,28 +12,9 @@ function normalizeLocation(input: string): string {
   return input.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
 }
 
-function useAutocomplete(type: 'bar' | 'city') {
-  const [suggestions, setSuggestions] = useState<string[]>([])
-  const [show, setShow] = useState(false)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const search = useCallback((q: string) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    if (q.trim().length < 1) { setSuggestions([]); setShow(false); return }
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/locations?q=${encodeURIComponent(q)}&type=${type}`)
-        const data = await res.json()
-        const list = data.locations || []
-        setSuggestions(list)
-        setShow(list.length > 0)
-      } catch { setSuggestions([]) }
-    }, 300)
-  }, [type])
-
-  const hide = () => setShow(false)
-
-  return { suggestions, show, search, hide, setShow }
+interface LocationResult {
+  locations: string[]
+  cityByBar: Record<string, string>
 }
 
 export default function PostForm({ pseudo, onSuccess }: PostFormProps) {
@@ -45,11 +26,69 @@ export default function PostForm({ pseudo, onSuccess }: PostFormProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  // Suggestions bar
+  const [barSuggestions, setBarSuggestions] = useState<string[]>([])
+  const [cityByBar, setCityByBar] = useState<Record<string, string>>({})
+  const [showBarSuggestions, setShowBarSuggestions] = useState(false)
+
+  // Suggestions ville
+  const [citySuggestions, setCitySuggestions] = useState<string[]>([])
+  const [showCitySuggestions, setShowCitySuggestions] = useState(false)
+
   const cameraRef = useRef<HTMLInputElement>(null)
   const galleryRef = useRef<HTMLInputElement>(null)
+  const barDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cityDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const bar = useAutocomplete('bar')
-  const cityAc = useAutocomplete('city')
+  async function fetchLocations(q: string, type: 'bar' | 'city'): Promise<LocationResult> {
+    const res = await fetch(`/api/locations?q=${encodeURIComponent(q)}&type=${type}`)
+    return res.json()
+  }
+
+  // Recherche bars (avec debounce)
+  function searchBars(q: string) {
+    if (barDebounce.current) clearTimeout(barDebounce.current)
+    barDebounce.current = setTimeout(async () => {
+      try {
+        const data = await fetchLocations(q, 'bar')
+        setBarSuggestions(data.locations || [])
+        setCityByBar(data.cityByBar || {})
+        setShowBarSuggestions(true)
+      } catch { setBarSuggestions([]) }
+    }, q ? 300 : 0) // pas de debounce au focus (q vide)
+  }
+
+  // Recherche villes (avec debounce)
+  function searchCities(q: string) {
+    if (cityDebounce.current) clearTimeout(cityDebounce.current)
+    cityDebounce.current = setTimeout(async () => {
+      try {
+        const data = await fetchLocations(q, 'city')
+        setCitySuggestions(data.locations || [])
+        setShowCitySuggestions(true)
+      } catch { setCitySuggestions([]) }
+    }, q ? 300 : 0)
+  }
+
+  function selectBar(bar: string) {
+    setBarName(bar)
+    setShowBarSuggestions(false)
+    // Auto-remplir la ville si on la connaît
+    const knownCity = cityByBar[bar]
+    if (knownCity && !city) {
+      setCity(knownCity)
+    }
+  }
+
+  function selectCity(c: string) {
+    setCity(c)
+    setShowCitySuggestions(false)
+  }
+
+  // Vérifie si la saisie correspond exactement à une suggestion (insensible à la casse)
+  function isExactMatch(input: string, suggestions: string[]): boolean {
+    return suggestions.some(s => s.toLowerCase() === input.toLowerCase().trim())
+  }
 
   function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -65,8 +104,8 @@ export default function PostForm({ pseudo, onSuccess }: PostFormProps) {
     setBarName('')
     setCity('')
     setError('')
-    bar.hide()
-    cityAc.hide()
+    setShowBarSuggestions(false)
+    setShowCitySuggestions(false)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -80,11 +119,9 @@ export default function PostForm({ pseudo, onSuccess }: PostFormProps) {
 
     const normalizedBar = normalizeLocation(barName)
     const normalizedCity = normalizeLocation(city)
-    const location = `${normalizedBar}, ${normalizedCity}`
 
     const formData = new FormData()
     formData.append('photo', photo)
-    formData.append('location', location)
     formData.append('bar_name', normalizedBar)
     formData.append('city', normalizedCity)
 
@@ -156,54 +193,81 @@ export default function PostForm({ pseudo, onSuccess }: PostFormProps) {
               <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} className="hidden" />
               <input ref={galleryRef} type="file" accept="image/*" onChange={handlePhoto} className="hidden" />
 
-              {/* Nom du bar */}
+              {/* Champ Bar */}
               <div className="relative">
                 <input
                   type="text"
                   value={barName}
-                  onChange={e => { setBarName(e.target.value); bar.search(e.target.value) }}
-                  onBlur={() => setTimeout(() => bar.hide(), 150)}
+                  onChange={e => { setBarName(e.target.value); searchBars(e.target.value) }}
+                  onFocus={() => searchBars(barName)} // suggestions immédiates au focus
+                  onBlur={() => setTimeout(() => setShowBarSuggestions(false), 150)}
                   placeholder="🍺 Nom du bar (ex: Bar le RDV)"
                   className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-gray-700 focus:border-amber-500 focus:outline-none placeholder-gray-500"
                   autoComplete="off"
                   required
                 />
-                {bar.show && (
+
+                {showBarSuggestions && (
                   <div className="absolute left-0 right-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden z-10 shadow-xl">
-                    {bar.suggestions.map((s, i) => (
+                    {barSuggestions.map((s, i) => (
                       <button key={i} type="button"
-                        onMouseDown={() => { setBarName(s); bar.hide() }}
-                        onTouchStart={() => { setBarName(s); bar.hide() }}
+                        onMouseDown={() => selectBar(s)}
+                        onTouchStart={() => selectBar(s)}
                         className="w-full text-left px-4 py-3 text-white text-sm hover:bg-gray-700 active:bg-gray-600 flex items-center gap-2 border-b border-gray-700/50 last:border-0">
-                        <span className="text-gray-400">🍺</span>{s}
+                        <span className="text-gray-400">🍺</span>
+                        <span className="flex-1">{s}</span>
+                        {cityByBar[s] && <span className="text-gray-500 text-xs">📍 {cityByBar[s]}</span>}
                       </button>
                     ))}
+
+                    {/* Option "Ajouter" si pas de correspondance exacte */}
+                    {barName.trim().length > 0 && !isExactMatch(barName, barSuggestions) && (
+                      <button type="button"
+                        onMouseDown={() => { setShowBarSuggestions(false) }}
+                        onTouchStart={() => { setShowBarSuggestions(false) }}
+                        className="w-full text-left px-4 py-3 text-amber-400 text-sm hover:bg-gray-700 active:bg-gray-600 flex items-center gap-2 border-t border-gray-700">
+                        <span>➕</span>
+                        <span>Ajouter <strong>"{normalizeLocation(barName)}"</strong></span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
 
-              {/* Ville */}
+              {/* Champ Ville */}
               <div className="relative">
                 <input
                   type="text"
                   value={city}
-                  onChange={e => { setCity(e.target.value); cityAc.search(e.target.value) }}
-                  onBlur={() => setTimeout(() => cityAc.hide(), 150)}
+                  onChange={e => { setCity(e.target.value); searchCities(e.target.value) }}
+                  onFocus={() => searchCities(city)}
+                  onBlur={() => setTimeout(() => setShowCitySuggestions(false), 150)}
                   placeholder="📍 Ville (ex: Versailles)"
                   className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-gray-700 focus:border-amber-500 focus:outline-none placeholder-gray-500"
                   autoComplete="off"
                   required
                 />
-                {cityAc.show && (
+
+                {showCitySuggestions && (
                   <div className="absolute left-0 right-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden z-10 shadow-xl">
-                    {cityAc.suggestions.map((s, i) => (
+                    {citySuggestions.map((s, i) => (
                       <button key={i} type="button"
-                        onMouseDown={() => { setCity(s); cityAc.hide() }}
-                        onTouchStart={() => { setCity(s); cityAc.hide() }}
+                        onMouseDown={() => selectCity(s)}
+                        onTouchStart={() => selectCity(s)}
                         className="w-full text-left px-4 py-3 text-white text-sm hover:bg-gray-700 active:bg-gray-600 flex items-center gap-2 border-b border-gray-700/50 last:border-0">
                         <span className="text-gray-400">📍</span>{s}
                       </button>
                     ))}
+
+                    {city.trim().length > 0 && !isExactMatch(city, citySuggestions) && (
+                      <button type="button"
+                        onMouseDown={() => { setShowCitySuggestions(false) }}
+                        onTouchStart={() => { setShowCitySuggestions(false) }}
+                        className="w-full text-left px-4 py-3 text-amber-400 text-sm hover:bg-gray-700 active:bg-gray-600 flex items-center gap-2 border-t border-gray-700">
+                        <span>➕</span>
+                        <span>Ajouter <strong>"{normalizeLocation(city)}"</strong></span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

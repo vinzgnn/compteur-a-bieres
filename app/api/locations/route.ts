@@ -9,33 +9,46 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const q = searchParams.get('q')?.trim() || ''
   const type = searchParams.get('type') || 'bar' // 'bar' | 'city'
-
-  if (q.length < 1) return NextResponse.json({ locations: [] })
-
-  const supabase = createServerSupabase()
   const column = type === 'city' ? 'city' : 'bar_name'
 
-  const { data } = await supabase
+  const supabase = createServerSupabase()
+
+  // Si q est vide → retourne les lieux les plus récents (suggestions au focus)
+  // Si q est renseigné → filtre avec ilike
+  let query = supabase
     .from('posts')
-    .select(column)
-    .ilike(column, `%${q}%`)
+    .select('bar_name, city')
     .not(column, 'is', null)
     .order('created_at', { ascending: false })
-    .limit(50)
+    .limit(100)
 
-  // Dédoublonne (insensible à la casse) et limite à 6
+  if (q.length > 0) {
+    query = query.ilike(column, `%${q}%`)
+  }
+
+  const { data } = await query
+
+  // Dédoublonne par bar_name (insensible à la casse), garde la ville associée
   const seen = new Set<string>()
-  const locations: string[] = []
+  const results: { bar_name: string; city: string }[] = []
+
   for (const row of data || []) {
-    const val = (row as Record<string, string>)[column]
+    const val = type === 'city' ? row.city : row.bar_name
     if (!val) continue
     const key = val.toLowerCase()
     if (!seen.has(key)) {
       seen.add(key)
-      locations.push(val)
+      results.push({ bar_name: row.bar_name || '', city: row.city || '' })
     }
-    if (locations.length >= 6) break
+    if (results.length >= 6) break
   }
 
-  return NextResponse.json({ locations })
+  // Pour le champ bar : on retourne aussi la ville associée pour l'auto-complétion
+  const locations = results.map(r => (type === 'city' ? r.city : r.bar_name))
+  const cityByBar: Record<string, string> = {}
+  for (const r of results) {
+    if (r.bar_name) cityByBar[r.bar_name] = r.city
+  }
+
+  return NextResponse.json({ locations, cityByBar })
 }
