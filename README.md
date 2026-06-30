@@ -53,7 +53,6 @@ Application web privée de suivi de pintes pour un groupe d'amis. Objectif : att
 - Badges obtenus
 
 ### Badges
-Attribués automatiquement lors du post :
 
 | Badge | Emoji | Condition |
 |---|---|---|
@@ -73,45 +72,44 @@ Envoi automatique chaque lundi à 9h par email à tous les membres avec :
 ---
 
 ## Structure du projet
-compteur-a-bieres/
 
-app/
-  api/
-    auth/route.ts          → Login / logout
-    badges/route.ts        → GET badges d'un membre
-    bars/route.ts          → GET bars visités avec comptage
-    leaderboard/route.ts   → GET classement semaine / all-time
-    locations/route.ts     → GET autocomplétion bar / ville
-    newsletter/route.ts    → GET envoi newsletter (cron)
-    posts/route.ts         → GET liste paginée / POST nouveau post
-    posts/[id]/route.ts    → DELETE un post
-    stats/route.ts         → GET statistiques
-    votes/route.ts         → GET pinte du mois / POST voter
-  classement/page.tsx      → Page classement + vote pinte du mois
-  login/page.tsx           → Page de connexion
-  profil/[pseudo]/page.tsx → Page profil par membre
-  stats/page.tsx           → Page statistiques
-  page.tsx                 → Feed principal
+**`app/api/`**
+- `auth/route.ts` — Login / logout
+- `badges/route.ts` — GET badges d'un membre
+- `bars/route.ts` — GET bars visités avec comptage
+- `leaderboard/route.ts` — GET classement semaine / all-time
+- `locations/route.ts` — GET autocomplétion bar / ville
+- `newsletter/route.ts` — GET envoi newsletter (cron)
+- `posts/route.ts` — GET liste paginée / POST nouveau post
+- `posts/[id]/route.ts` — DELETE un post
+- `stats/route.ts` — GET statistiques
+- `votes/route.ts` — GET pinte du mois / POST voter
 
-components/
-  BadgeList.tsx    → Affichage des badges
-  BarsMap.tsx      → Carte Leaflet des bars
-  Counter.tsx      → Barre de progression
-  FeedClient.tsx   → Feed realtime + confettis
-  Leaderboard.tsx  → Tableau classement
-  Navigation.tsx   → Barre de navigation
-  PinteDuMois.tsx  → Vote pinte du mois
-  PostCard.tsx     → Carte d'un post
-  PostForm.tsx     → Formulaire nouveau post
-  StatsClient.tsx  → Statistiques interactives
+**`app/`**
+- `classement/page.tsx` — Page classement + vote pinte du mois
+- `login/page.tsx` — Page de connexion
+- `profil/[pseudo]/page.tsx` — Page profil par membre
+- `stats/page.tsx` — Page statistiques
+- `page.tsx` — Feed principal
 
-lib/
-  auth.ts              → Helper getPseudo() (cookie)
-  supabase-client.ts   → Client Supabase navigateur (Realtime)
-  supabase-server.ts   → Client Supabase serveur (service role)
-  utils.ts             → formatDate, getWeekRange…
+**`components/`**
+- `BadgeList.tsx` — Affichage des badges
+- `BarsMap.tsx` — Carte Leaflet des bars
+- `Counter.tsx` — Barre de progression
+- `FeedClient.tsx` — Feed realtime + confettis
+- `Leaderboard.tsx` — Tableau classement
+- `Navigation.tsx` — Barre de navigation
+- `PinteDuMois.tsx` — Vote pinte du mois
+- `PostCard.tsx` — Carte d'un post
+- `PostForm.tsx` — Formulaire nouveau post
+- `StatsClient.tsx` — Statistiques interactives
 
-vercel.json   → Config cron Vercel
+**`lib/`**
+- `auth.ts` — Helper `getPseudo()` (cookie)
+- `supabase-client.ts` — Client Supabase navigateur (Realtime)
+- `supabase-server.ts` — Client Supabase serveur (service role)
+- `utils.ts` — `formatDate`, `getWeekRange`…
+
 ---
 
 ## Base de données (Supabase)
@@ -154,12 +152,6 @@ vercel.json   → Config cron Vercel
 | month | text | Format YYYY-MM |
 | created_at | timestamptz | Date du vote |
 
-### Table `reactions`
-Réactions emoji sur les posts.
-
-### Table `comments`
-Commentaires sur les posts.
-
 ### Realtime
 La table `posts` a le Realtime activé (Publications dans le dashboard Supabase) pour le feed live.
 
@@ -168,23 +160,14 @@ La table `posts` a le Realtime activé (Publications dans le dashboard Supabase)
 ## Variables d'environnement
 
 ```env
-# Supabase
 NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
-
-# Auth cookie
 COOKIE_SECRET=un_secret_long_et_aléatoire
-
-# Resend (emails)
 RESEND_API_KEY=re_...
 NEWSLETTER_FROM=newsletter@tondomaine.com
 NEWSLETTER_TO=groupe@tondomaine.com
-
-# Cron
 CRON_SECRET=un_secret_quelconque
-
-# Objectif
 NEXT_PUBLIC_GOAL=5000
 ```
 
@@ -209,13 +192,13 @@ npm run dev
 3. Ajoute toutes les variables d'env dans **Settings → Environment Variables**
 4. Deploy !
 
-Le cron `vercel.json` enverra automatiquement la newsletter chaque lundi à 9h UTC.
+Le fichier `vercel.json` déclenche automatiquement la newsletter chaque lundi à 9h UTC via un cron job. La route `/api/newsletter` est protégée par le header `Authorization: Bearer ${CRON_SECRET}`.
 
 ---
 
 ## Authentification
 
-Système custom (sans Supabase Auth) :
+Système custom sans Supabase Auth :
 - Login via pseudo + mot de passe
 - Cookie HTTP-only `biere_pseudo` posé par `/api/auth`
 - Helper `getPseudo()` dans `lib/auth.ts` côté serveur
@@ -227,5 +210,5 @@ Système custom (sans Supabase Auth) :
 
 - API Nominatim (OpenStreetMap) — gratuite, sans clé API
 - Geocodage par **ville uniquement** (plus fiable que par adresse de bar)
-- Cache localStorage (`biere_geocache_city_v1`) pour éviter les requêtes répétées
-- Délai 1100ms entre chaque requête (respect des CGU Nominatim)
+- Cache `localStorage` (`biere_geocache_city_v1`) pour éviter les requêtes répétées
+- Délai de 1100ms entre chaque requête (respect des CGU Nominatim)
