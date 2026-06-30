@@ -7,7 +7,8 @@ import { formatDate } from '@/lib/utils'
 interface Post {
   id: string
   pseudo: string
-  location: string
+  bar_name: string
+  city: string
   photo_url: string
   pint_number: number
   created_at: string
@@ -18,9 +19,8 @@ interface PinteDuMoisProps {
   pseudo: string
 }
 
-export default function PinteDuMois({ pseudo }: PinteDuMoisProps) {
+export default function PinteduMois({ pseudo }: PinteDuMoisProps) {
   const [winner, setWinner] = useState<Post | null>(null)
-  const [votes, setVotes] = useState<Record<string, number>>({})
   const [myVote, setMyVote] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [voting, setVoting] = useState(false)
@@ -32,7 +32,6 @@ export default function PinteDuMois({ pseudo }: PinteDuMoisProps) {
       .then(r => r.json())
       .then(d => {
         setWinner(d.winner)
-        setVotes(d.votes || {})
         setMyVote(d.myVote)
         setLoading(false)
       })
@@ -48,13 +47,6 @@ export default function PinteDuMois({ pseudo }: PinteDuMoisProps) {
     })
     if (res.ok) {
       setMyVote(postId)
-      setVotes(prev => {
-        const next = { ...prev }
-        if (myVote) next[myVote] = Math.max(0, (next[myVote] || 1) - 1)
-        next[postId] = (next[postId] || 0) + 1
-        return next
-      })
-      // Rafraîchir le gagnant
       const data = await fetch('/api/votes').then(r => r.json())
       setWinner(data.winner)
     }
@@ -67,7 +59,6 @@ export default function PinteDuMois({ pseudo }: PinteDuMoisProps) {
 
   return (
     <div className="bg-gray-900 rounded-2xl overflow-hidden border border-amber-800/40">
-      {/* Header */}
       <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between">
         <div>
           <h2 className="text-white font-bold text-lg">🏆 Pinte du mois</h2>
@@ -82,7 +73,6 @@ export default function PinteDuMois({ pseudo }: PinteDuMoisProps) {
 
       {winner ? (
         <div>
-          {/* Photo gagnante */}
           <div className="relative aspect-video">
             <Image
               src={winner.photo_url}
@@ -94,7 +84,8 @@ export default function PinteDuMois({ pseudo }: PinteDuMoisProps) {
             <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 60%)' }} />
             <div className="absolute bottom-4 left-4 right-4">
               <p className="text-amber-400 font-black text-xl">Pinte #{winner.pint_number}</p>
-              <p className="text-white font-bold">{winner.pseudo} · 📍 {winner.location}</p>
+              <p className="text-white font-bold">{winner.pseudo}</p>
+              <p className="text-gray-300 text-sm">🍺 {winner.bar_name} · 📍 {winner.city}</p>
               <p className="text-gray-400 text-xs mt-1">{formatDate(winner.created_at)}</p>
             </div>
             <div className="absolute top-3 right-3 bg-amber-500 text-black font-black text-sm px-3 py-1 rounded-full">
@@ -102,7 +93,6 @@ export default function PinteDuMois({ pseudo }: PinteDuMoisProps) {
             </div>
           </div>
 
-          {/* Actions */}
           <div className="p-4 flex items-center justify-between">
             <p className="text-gray-500 text-sm">
               {myVote === winner.id ? 'Tu votes pour cette pinte 🎉' : 'Vote pour ta pinte préférée du mois'}

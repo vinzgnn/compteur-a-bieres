@@ -5,7 +5,6 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-
 const MILESTONES = [50, 100, 250, 500, 1000, 2000, 5000]
 
 const MILESTONE_MESSAGES: Record<number, string> = {
@@ -18,7 +17,6 @@ const MILESTONE_MESSAGES: Record<number, string> = {
   5000: "5000 pintes ! OBJECTIF ATTEINT ! 🎉🍺🎉",
 }
 
-// Définition des badges
 const BADGE_DEFINITIONS = {
   premier_post:  { label: "Premier post", emoji: "🥇", desc: "Premier à avoir posté une pinte" },
   centenaire:    { label: "Centenaire",   emoji: "💯", desc: "A posté la 100ème pinte du groupe" },
@@ -28,11 +26,6 @@ const BADGE_DEFINITIONS = {
 }
 
 type BadgeType = keyof typeof BADGE_DEFINITIONS
-function normalizeLocation(input: string): string {
-  return input.trim()
-    .toLowerCase()
-    .replace(/\b\w/g, c => c.toUpperCase())
-}
 
 // GET : récupérer les posts (paginés)
 export async function GET(req: NextRequest) {
@@ -60,12 +53,12 @@ export async function POST(req: NextRequest) {
 
   const formData = await req.formData()
   const photo = formData.get('photo') as File | null
-  const location = normalizeLocation(formData.get('location') as string || '')
-  const bar_name = formData.get('bar_name') as string || ''
-  const city = formData.get('city') as string || ''
+  const bar_name = (formData.get('bar_name') as string)?.trim()
+  const city = (formData.get('city') as string)?.trim()
 
   if (!photo) return NextResponse.json({ error: 'Photo manquante' }, { status: 400 })
-  if (!location) return NextResponse.json({ error: 'Lieu manquant' }, { status: 400 })
+  if (!bar_name) return NextResponse.json({ error: 'Nom du bar manquant' }, { status: 400 })
+  if (!city) return NextResponse.json({ error: 'Ville manquante' }, { status: 400 })
 
   const supabase = createServerSupabase()
 
@@ -92,26 +85,32 @@ export async function POST(req: NextRequest) {
 
   const { data: post, error: insertError } = await supabase
     .from('posts')
-   .insert({ pseudo, member_id: member?.id ?? null, location, bar_name, city, photo_url: publicUrl, pint_number: pintNumber, is_milestone: isMilestone })
+    .insert({
+      pseudo,
+      member_id: member?.id ?? null,
+      bar_name,
+      city,
+      photo_url: publicUrl,
+      pint_number: pintNumber,
+      is_milestone: isMilestone,
+    })
+    .select().single()
 
   if (insertError) return NextResponse.json({ error: 'Erreur lors de la sauvegarde' }, { status: 500 })
 
   // Attribution des badges
   const earnedBadges: BadgeType[] = []
 
-  // 🥇 Premier post du groupe
   if (pintNumber === 1) {
     await awardBadge(supabase, pseudo, 'premier_post')
     earnedBadges.push('premier_post')
   }
 
-  // 💯 A posté la 100ème pinte
   if (pintNumber === 100) {
     await awardBadge(supabase, pseudo, 'centenaire')
     earnedBadges.push('centenaire')
   }
 
-  // 📅 Vendredi
   if (new Date().getDay() === 5) {
     const already = await hasBadge(supabase, pseudo, 'vendredi')
     if (!already) {
@@ -120,11 +119,11 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 📍 Explorateur — 5 bars différents
+  // Explorateur — 5 bars différents
   const { data: userPosts } = await supabase
-    .from('posts').select('location').eq('pseudo', pseudo)
-  const uniqueLocs = new Set((userPosts || []).map(p => p.location.toLowerCase().trim()))
-  if (uniqueLocs.size >= 5) {
+    .from('posts').select('bar_name').eq('pseudo', pseudo)
+  const uniqueBars = new Set((userPosts || []).map(p => p.bar_name?.toLowerCase().trim()).filter(Boolean))
+  if (uniqueBars.size >= 5) {
     const already = await hasBadge(supabase, pseudo, 'explorateur')
     if (!already) {
       await awardBadge(supabase, pseudo, 'explorateur')
@@ -132,7 +131,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 🔥 Assidu — 3 semaines de suite
+  // Assidu — 3 semaines de suite
   const isAssidu = await checkAssidu(supabase, pseudo)
   if (isAssidu) {
     const already = await hasBadge(supabase, pseudo, 'assidu')
@@ -142,13 +141,11 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Email palier
-  if (isMilestone) await sendMilestoneEmail(pintNumber, pseudo, location, publicUrl)
+  if (isMilestone) await sendMilestoneEmail(pintNumber, pseudo, bar_name, city, publicUrl)
 
   return NextResponse.json({ post, isMilestone, earnedBadges }, { status: 201 })
 }
 
-// Helpers badges
 async function awardBadge(supabase: ReturnType<typeof import('@/lib/supabase-server').createServerSupabase>, pseudo: string, badge: BadgeType) {
   await supabase.from('member_badges').insert({ pseudo, badge }).select()
 }
@@ -159,7 +156,6 @@ async function hasBadge(supabase: ReturnType<typeof import('@/lib/supabase-serve
 }
 
 async function checkAssidu(supabase: ReturnType<typeof import('@/lib/supabase-server').createServerSupabase>, pseudo: string): Promise<boolean> {
-  // Vérifie si le membre a posté durant les 3 dernières semaines calendaires
   const now = new Date()
   const weeks: { start: Date; end: Date }[] = []
   for (let i = 0; i < 3; i++) {
@@ -184,7 +180,7 @@ async function checkAssidu(supabase: ReturnType<typeof import('@/lib/supabase-se
   return true
 }
 
-async function sendMilestoneEmail(pintNumber: number, pseudo: string, location: string, photoUrl: string) {
+async function sendMilestoneEmail(pintNumber: number, pseudo: string, bar_name: string, city: string, photoUrl: string) {
   const supabase = createServerSupabase()
   const { data: members } = await supabase.from('members').select('email').not('email', 'is', null)
   const emails = (members || []).map(m => m.email!).filter(Boolean)
@@ -192,6 +188,7 @@ async function sendMilestoneEmail(pintNumber: number, pseudo: string, location: 
 
   const goal = parseInt(process.env.NEXT_PUBLIC_GOAL || '5000')
   const message = MILESTONE_MESSAGES[pintNumber] || `Pinte #${pintNumber} atteinte !`
+  const lieu = `${bar_name}, ${city}`
 
   const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
@@ -206,7 +203,7 @@ async function sendMilestoneEmail(pintNumber: number, pseudo: string, location: 
     <div style="background:#111827;border-radius:16px;padding:24px;margin-bottom:16px;text-align:center;">
       <p style="color:#9ca3af;margin:0 0 8px;font-size:13px;">Posté par</p>
       <p style="color:#f59e0b;font-size:28px;font-weight:900;margin:0 0 4px;">${pseudo}</p>
-      <p style="color:#6b7280;font-size:14px;margin:0;">📍 ${location}</p>
+      <p style="color:#6b7280;font-size:14px;margin:0;">🍺 ${bar_name} · 📍 ${city}</p>
     </div>
     <div style="border-radius:16px;overflow:hidden;margin-bottom:16px;border:3px solid #d97706;">
       <img src="${photoUrl}" alt="Pinte #${pintNumber}" style="width:100%;display:block;" />
@@ -228,4 +225,3 @@ async function sendMilestoneEmail(pintNumber: number, pseudo: string, location: 
     html,
   })
 }
-

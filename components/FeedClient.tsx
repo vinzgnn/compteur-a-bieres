@@ -9,7 +9,8 @@ import Counter from '@/components/Counter'
 interface Post {
   id: string
   pseudo: string
-  location: string
+  bar_name: string
+  city: string
   photo_url: string
   pint_number: number
   created_at: string
@@ -55,17 +56,8 @@ export default function FeedClient({ pseudo, initialPosts, initialTotal }: FeedC
 
   return (
     <>
-      {/* Formulaire de post */}
       <PostForm pseudo={pseudo} onSuccess={refreshFeed} />
 
-      {/* Compteur mis à jour dynamiquement */}
-      {total !== undefined && (
-        <div className="hidden">
-          {/* Le Counter en haut de la page est rendu en SSR, le client track le total */}
-        </div>
-      )}
-
-      {/* Feed */}
       <div className="space-y-4">
         {posts.length === 0 ? (
           <div className="text-center py-16">

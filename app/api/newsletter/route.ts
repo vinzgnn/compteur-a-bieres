@@ -6,7 +6,6 @@ import { Resend } from 'resend'
 const resend = new Resend(process.env.RESEND_API_KEY)
 
 export async function GET(req: NextRequest) {
-  // Vérification sécurité cron
   const authHeader = req.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
@@ -15,7 +14,6 @@ export async function GET(req: NextRequest) {
   const supabase = createServerSupabase()
   const { start, end } = getPreviousWeekRange()
 
-  // Posts de la semaine écoulée
   const { data: weekPosts, count: weekCount } = await supabase
     .from('posts')
     .select('*', { count: 'exact' })
@@ -23,30 +21,32 @@ export async function GET(req: NextRequest) {
     .lte('created_at', end.toISOString())
     .order('created_at', { ascending: false })
 
-  // Total global
   const { count: totalCount } = await supabase
     .from('posts')
     .select('*', { count: 'exact', head: true })
 
-  // Classement de la semaine
   const ranking = buildRanking(weekPosts || [])
 
-  // Lieux les plus visités cette semaine
-  const locationCounts: Record<string, number> = {}
+  // Bar le plus visité cette semaine
+  const barCounts: Record<string, number> = {}
   for (const p of weekPosts || []) {
-    locationCounts[p.location] = (locationCounts[p.location] || 0) + 1
+    if (p.bar_name) barCounts[p.bar_name] = (barCounts[p.bar_name] || 0) + 1
   }
-  const topLocation = Object.entries(locationCounts)
-    .sort((a, b) => b[1] - a[1])[0]?.[0] || '-'
+  const topBar = Object.entries(barCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '-'
 
-  // Récupérer les emails des membres
+  // Ville la plus visitée cette semaine
+  const cityCounts: Record<string, number> = {}
+  for (const p of weekPosts || []) {
+    if (p.city) cityCounts[p.city] = (cityCounts[p.city] || 0) + 1
+  }
+  const topCity = Object.entries(cityCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '-'
+
   const { data: members } = await supabase
     .from('members')
     .select('email, pseudo')
     .not('email', 'is', null)
 
   const emails = (members || []).map(m => m.email!).filter(Boolean)
-
   if (emails.length === 0) {
     return NextResponse.json({ message: 'Aucun email à envoyer' })
   }
@@ -54,7 +54,6 @@ export async function GET(req: NextRequest) {
   const goal = parseInt(process.env.NEXT_PUBLIC_GOAL || '5000')
   const progressPct = Math.min(100, Math.round(((totalCount || 0) / goal) * 100))
 
-  // Génération du HTML newsletter
   const rankingRows = ranking.slice(0, 5)
     .map((r, i) => {
       const medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣']
@@ -82,24 +81,21 @@ export async function GET(req: NextRequest) {
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
 <body style="margin:0;padding:0;background:#1c1c2e;font-family:Arial,sans-serif;">
   <div style="max-width:600px;margin:0 auto;padding:24px;">
-    <!-- Header -->
     <div style="text-align:center;padding:32px 24px;background:linear-gradient(135deg,#92400e,#d97706);border-radius:16px;margin-bottom:24px;">
       <div style="font-size:48px;margin-bottom:8px;">🍺</div>
       <h1 style="color:#fff;margin:0;font-size:28px;font-weight:800;">Road to ${goal} pintes</h1>
       <p style="color:#fef3c7;margin:8px 0 0;font-size:14px;">Récap de la semaine · ${weekLabel}</p>
     </div>
 
-    <!-- Compteur global -->
     <div style="background:#2d2d44;border-radius:12px;padding:24px;margin-bottom:16px;text-align:center;">
       <p style="color:#9ca3af;margin:0 0 4px;font-size:13px;text-transform:uppercase;letter-spacing:1px;">Total général</p>
       <p style="color:#f59e0b;margin:0;font-size:48px;font-weight:900;">${totalCount || 0} <span style="font-size:24px;color:#9ca3af;">/ ${goal}</span></p>
       <div style="background:#374151;border-radius:99px;height:12px;margin:16px 0 8px;">
-        <div style="background:linear-gradient(90deg,#d97706,#f59e0b);border-radius:99px;height:12px;width:${progressPct}%;transition:width 1s;"></div>
+        <div style="background:linear-gradient(90deg,#d97706,#f59e0b);border-radius:99px;height:12px;width:${progressPct}%;"></div>
       </div>
       <p style="color:#6b7280;margin:0;font-size:13px;">${progressPct}% de l'objectif atteint</p>
     </div>
 
-    <!-- Stats semaine -->
     <div style="background:#2d2d44;border-radius:12px;padding:24px;margin-bottom:16px;">
       <h2 style="color:#f59e0b;margin:0 0 16px;font-size:18px;">📊 La semaine en chiffres</h2>
       <div style="display:flex;gap:12px;flex-wrap:wrap;">
@@ -112,37 +108,31 @@ export async function GET(req: NextRequest) {
           <p style="color:#9ca3af;font-size:12px;margin:4px 0 0;">participants actifs</p>
         </div>
         <div style="flex:1;min-width:120px;background:#1c1c2e;border-radius:8px;padding:16px;text-align:center;">
-          <p style="color:#f59e0b;font-size:20px;font-weight:800;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${topLocation}</p>
-          <p style="color:#9ca3af;font-size:12px;margin:4px 0 0;">bar de la semaine</p>
+          <p style="color:#f59e0b;font-size:16px;font-weight:800;margin:0;">🍺 ${topBar}</p>
+          <p style="color:#9ca3af;font-size:12px;margin:4px 0 0;">📍 ${topCity}</p>
+          <p style="color:#6b7280;font-size:11px;margin:4px 0 0;">lieu de la semaine</p>
         </div>
       </div>
     </div>
 
-    <!-- Classement semaine -->
     ${rankingRows ? `
     <div style="background:#2d2d44;border-radius:12px;padding:24px;margin-bottom:16px;">
       <h2 style="color:#f59e0b;margin:0 0 16px;font-size:18px;">🏆 Classement de la semaine</h2>
-      <table style="width:100%;border-collapse:collapse;">
-        ${rankingRows}
-      </table>
+      <table style="width:100%;border-collapse:collapse;">${rankingRows}</table>
     </div>
     ` : ''}
 
-    <!-- Encouragement -->
     <div style="background:linear-gradient(135deg,#1e3a5f,#1c1c2e);border:1px solid #374151;border-radius:12px;padding:20px;margin-bottom:24px;text-align:center;">
       <p style="color:#e5e7eb;font-size:16px;font-style:italic;margin:0;">"${encouragement}"</p>
     </div>
 
-    <!-- Footer -->
     <p style="color:#4b5563;text-align:center;font-size:12px;margin:0;">
-      Tu reçois cet email parce que tu fais partie du groupe Road to ${goal} pintes.<br>
-      Santé 🍺
+      Tu reçois cet email parce que tu fais partie du groupe Road to ${goal} pintes.<br>Santé 🍺
     </p>
   </div>
 </body>
 </html>`
 
-  // Envoi des emails
   const { error } = await resend.emails.send({
     from: process.env.RESEND_FROM_EMAIL!,
     to: emails,
@@ -155,19 +145,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Erreur envoi email' }, { status: 500 })
   }
 
-  return NextResponse.json({
-    message: `Newsletter envoyée à ${emails.length} membres`,
-    weekCount,
-    totalCount,
-  })
+  return NextResponse.json({ message: `Newsletter envoyée à ${emails.length} membres`, weekCount, totalCount })
 }
 
 function buildRanking(posts: { pseudo: string }[]) {
   const counts: Record<string, number> = {}
-  for (const p of posts) {
-    counts[p.pseudo] = (counts[p.pseudo] || 0) + 1
-  }
-  return Object.entries(counts)
-    .map(([pseudo, count]) => ({ pseudo, count }))
-    .sort((a, b) => b.count - a.count)
+  for (const p of posts) counts[p.pseudo] = (counts[p.pseudo] || 0) + 1
+  return Object.entries(counts).map(([pseudo, count]) => ({ pseudo, count })).sort((a, b) => b.count - a.count)
 }
