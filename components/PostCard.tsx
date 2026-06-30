@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import { useState } from 'react'
 import { formatDate } from '@/lib/utils'
 import ReactionBar from '@/components/ReactionBar'
 import Comments from '@/components/Comments'
@@ -19,10 +20,26 @@ interface Post {
 interface PostCardProps {
   post: Post
   pseudo: string
+  onDelete?: (id: string) => void
 }
 
-export default function PostCard({ post, pseudo }: PostCardProps) {
+export default function PostCard({ post, pseudo, onDelete }: PostCardProps) {
   const isMilestone = post.is_milestone
+  const isOwner = post.pseudo === pseudo
+  const [deleting, setDeleting] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  async function handleDelete() {
+    if (!confirmDelete) { setConfirmDelete(true); return }
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/posts/${post.id}`, { method: 'DELETE' })
+      if (res.ok) onDelete?.(post.id)
+    } finally {
+      setDeleting(false)
+      setConfirmDelete(false)
+    }
+  }
 
   return (
     <div className={`rounded-2xl overflow-hidden transition-colors ${
@@ -54,6 +71,21 @@ export default function PostCard({ post, pseudo }: PostCardProps) {
         }`}>
           #{post.pint_number}
         </div>
+
+        {/* Bouton supprimer — visible uniquement pour le propriétaire */}
+        {isOwner && (
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className={`absolute top-3 right-3 rounded-full px-3 py-1 text-xs font-bold transition-colors ${
+              confirmDelete
+                ? 'bg-red-600 text-white'
+                : 'bg-black/60 text-gray-300 hover:bg-red-600 hover:text-white'
+            }`}
+          >
+            {deleting ? '...' : confirmDelete ? 'Confirmer ?' : '🗑️'}
+          </button>
+        )}
       </div>
 
       {/* Infos */}

@@ -5,11 +5,49 @@ import Image from 'next/image'
 
 interface PostFormProps {
   pseudo: string
-  onSuccess: () => void
+  onSuccess: (isMilestone: boolean) => void
 }
 
 function normalizeLocation(input: string): string {
   return input.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
+}
+
+// Compression image via Canvas (max 1200px, qualité 85%)
+async function compressImage(file: File): Promise<File> {
+  return new Promise((resolve) => {
+    const MAX_WIDTH = 1200
+    const QUALITY = 0.85
+    const img = document.createElement('img')
+    const url = URL.createObjectURL(file)
+
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      let { width, height } = img
+      if (width > MAX_WIDTH) {
+        height = Math.round((height * MAX_WIDTH) / width)
+        width = MAX_WIDTH
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')!
+      ctx.drawImage(img, 0, 0, width, height)
+
+      canvas.toBlob(
+        blob => {
+          if (blob) {
+            resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' }))
+          } else {
+            resolve(file) // fallback sans compression
+          }
+        },
+        'image/jpeg',
+        QUALITY
+      )
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file) }
+    img.src = url
+  })
 }
 
 interface LocationResult {
@@ -21,17 +59,17 @@ export default function PostForm({ pseudo, onSuccess }: PostFormProps) {
   const [open, setOpen] = useState(false)
   const [photo, setPhoto] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
+  const [compressing, setCompressing] = useState(false)
+  const [originalSize, setOriginalSize] = useState<number | null>(null)
+  const [compressedSize, setCompressedSize] = useState<number | null>(null)
   const [barName, setBarName] = useState('')
   const [city, setCity] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // Suggestions bar
   const [barSuggestions, setBarSuggestions] = useState<string[]>([])
   const [cityByBar, setCityByBar] = useState<Record<string, string>>({})
   const [showBarSuggestions, setShowBarSuggestions] = useState(false)
-
-  // Suggestions ville
   const [citySuggestions, setCitySuggestions] = useState<string[]>([])
   const [showCitySuggestions, setShowCitySuggestions] = useState(false)
 
@@ -45,7 +83,6 @@ export default function PostForm({ pseudo, onSuccess }: PostFormProps) {
     return res.json()
   }
 
-  // Recherche bars (avec debounce)
   function searchBars(q: string) {
     if (barDebounce.current) clearTimeout(barDebounce.current)
     barDebounce.current = setTimeout(async () => {
@@ -55,10 +92,9 @@ export default function PostForm({ pseudo, onSuccess }: PostFormProps) {
         setCityByBar(data.cityByBar || {})
         setShowBarSuggestions(true)
       } catch { setBarSuggestions([]) }
-    }, q ? 300 : 0) // pas de debounce au focus (q vide)
+    }, q ? 300 : 0)
   }
 
-  // Recherche villes (avec debounce)
   function searchCities(q: string) {
     if (cityDebounce.current) clearTimeout(cityDebounce.current)
     cityDebounce.current = setTimeout(async () => {
@@ -73,28 +109,25 @@ export default function PostForm({ pseudo, onSuccess }: PostFormProps) {
   function selectBar(bar: string) {
     setBarName(bar)
     setShowBarSuggestions(false)
-    // Auto-remplir la ville si on la connaît
     const knownCity = cityByBar[bar]
-    if (knownCity && !city) {
-      setCity(knownCity)
-    }
+    if (knownCity && !city) setCity(knownCity)
   }
 
-  function selectCity(c: string) {
-    setCity(c)
-    setShowCitySuggestions(false)
-  }
-
-  // Vérifie si la saisie correspond exactement à une suggestion (insensible à la casse)
   function isExactMatch(input: string, suggestions: string[]): boolean {
     return suggestions.some(s => s.toLowerCase() === input.toLowerCase().trim())
   }
 
-  function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    setPhoto(file)
+    setOriginalSize(file.size)
+    setCompressing(true)
     setPreview(URL.createObjectURL(file))
+
+    const compressed = await compressImage(file)
+    setCompressedSize(compressed.size)
+    setPhoto(compressed)
+    setCompressing(false)
   }
 
   function handleClose() {
@@ -104,6 +137,8 @@ export default function PostForm({ pseudo, onSuccess }: PostFormProps) {
     setBarName('')
     setCity('')
     setError('')
+    setOriginalSize(null)
+    setCompressedSize(null)
     setShowBarSuggestions(false)
     setShowCitySuggestions(false)
   }
@@ -117,25 +152,28 @@ export default function PostForm({ pseudo, onSuccess }: PostFormProps) {
     setLoading(true)
     setError('')
 
-    const normalizedBar = normalizeLocation(barName)
-    const normalizedCity = normalizeLocation(city)
-
     const formData = new FormData()
     formData.append('photo', photo)
-    formData.append('bar_name', normalizedBar)
-    formData.append('city', normalizedCity)
+    formData.append('bar_name', normalizeLocation(barName))
+    formData.append('city', normalizeLocation(city))
 
     try {
       const res = await fetch('/api/posts', { method: 'POST', body: formData })
       const json = await res.json()
       if (!res.ok) { setError(json.error || 'Erreur'); return }
       handleClose()
-      onSuccess()
+      onSuccess(json.isMilestone === true)
     } catch {
       setError('Erreur réseau')
     } finally {
       setLoading(false)
     }
+  }
+
+  function formatSize(bytes: number) {
+    return bytes > 1024 * 1024
+      ? `${(bytes / 1024 / 1024).toFixed(1)} Mo`
+      : `${Math.round(bytes / 1024)} Ko`
   }
 
   return (
@@ -167,13 +205,31 @@ export default function PostForm({ pseudo, onSuccess }: PostFormProps) {
             <form onSubmit={handleSubmit} className="px-5 pb-5 space-y-4">
               {/* Photo */}
               {preview ? (
-                <div className="relative aspect-[4/3] rounded-2xl overflow-hidden">
-                  <Image src={preview} alt="Aperçu" fill className="object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => { setPhoto(null); setPreview(null) }}
-                    className="absolute top-2 right-2 bg-black/60 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm"
-                  >✕</button>
+                <div className="space-y-1">
+                  <div className="relative aspect-[4/3] rounded-2xl overflow-hidden">
+                    <Image src={preview} alt="Aperçu" fill className="object-cover" />
+                    {compressing && (
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                        <span className="text-white text-sm font-bold">Compression...</span>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => { setPhoto(null); setPreview(null); setOriginalSize(null); setCompressedSize(null) }}
+                      className="absolute top-2 right-2 bg-black/60 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm"
+                    >✕</button>
+                  </div>
+                  {/* Info compression */}
+                  {originalSize && compressedSize && !compressing && (
+                    <p className="text-gray-500 text-xs text-center">
+                      {formatSize(originalSize)} → {formatSize(compressedSize)}
+                      {compressedSize < originalSize && (
+                        <span className="text-green-500 ml-1">
+                          (-{Math.round((1 - compressedSize / originalSize) * 100)}%)
+                        </span>
+                      )}
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
@@ -193,48 +249,41 @@ export default function PostForm({ pseudo, onSuccess }: PostFormProps) {
               <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} className="hidden" />
               <input ref={galleryRef} type="file" accept="image/*" onChange={handlePhoto} className="hidden" />
 
-              {/* Champ Bar */}
+              {/* Bar */}
               <div className="relative">
                 <input
                   type="text"
                   value={barName}
                   onChange={e => { setBarName(e.target.value); searchBars(e.target.value) }}
-                  onFocus={() => searchBars(barName)} // suggestions immédiates au focus
+                  onFocus={() => searchBars(barName)}
                   onBlur={() => setTimeout(() => setShowBarSuggestions(false), 150)}
                   placeholder="🍺 Nom du bar (ex: Bar le RDV)"
                   className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-gray-700 focus:border-amber-500 focus:outline-none placeholder-gray-500"
-                  autoComplete="off"
-                  required
+                  autoComplete="off" required
                 />
-
                 {showBarSuggestions && (
                   <div className="absolute left-0 right-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden z-10 shadow-xl">
                     {barSuggestions.map((s, i) => (
                       <button key={i} type="button"
-                        onMouseDown={() => selectBar(s)}
-                        onTouchStart={() => selectBar(s)}
-                        className="w-full text-left px-4 py-3 text-white text-sm hover:bg-gray-700 active:bg-gray-600 flex items-center gap-2 border-b border-gray-700/50 last:border-0">
+                        onMouseDown={() => selectBar(s)} onTouchStart={() => selectBar(s)}
+                        className="w-full text-left px-4 py-3 text-white text-sm hover:bg-gray-700 flex items-center gap-2 border-b border-gray-700/50 last:border-0">
                         <span className="text-gray-400">🍺</span>
                         <span className="flex-1">{s}</span>
                         {cityByBar[s] && <span className="text-gray-500 text-xs">📍 {cityByBar[s]}</span>}
                       </button>
                     ))}
-
-                    {/* Option "Ajouter" si pas de correspondance exacte */}
                     {barName.trim().length > 0 && !isExactMatch(barName, barSuggestions) && (
                       <button type="button"
-                        onMouseDown={() => { setShowBarSuggestions(false) }}
-                        onTouchStart={() => { setShowBarSuggestions(false) }}
-                        className="w-full text-left px-4 py-3 text-amber-400 text-sm hover:bg-gray-700 active:bg-gray-600 flex items-center gap-2 border-t border-gray-700">
-                        <span>➕</span>
-                        <span>Ajouter <strong>"{normalizeLocation(barName)}"</strong></span>
+                        onMouseDown={() => setShowBarSuggestions(false)} onTouchStart={() => setShowBarSuggestions(false)}
+                        className="w-full text-left px-4 py-3 text-amber-400 text-sm hover:bg-gray-700 flex items-center gap-2 border-t border-gray-700">
+                        <span>➕</span><span>Ajouter <strong>"{normalizeLocation(barName)}"</strong></span>
                       </button>
                     )}
                   </div>
                 )}
               </div>
 
-              {/* Champ Ville */}
+              {/* Ville */}
               <div className="relative">
                 <input
                   type="text"
@@ -244,28 +293,22 @@ export default function PostForm({ pseudo, onSuccess }: PostFormProps) {
                   onBlur={() => setTimeout(() => setShowCitySuggestions(false), 150)}
                   placeholder="📍 Ville (ex: Versailles)"
                   className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-gray-700 focus:border-amber-500 focus:outline-none placeholder-gray-500"
-                  autoComplete="off"
-                  required
+                  autoComplete="off" required
                 />
-
                 {showCitySuggestions && (
                   <div className="absolute left-0 right-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden z-10 shadow-xl">
                     {citySuggestions.map((s, i) => (
                       <button key={i} type="button"
-                        onMouseDown={() => selectCity(s)}
-                        onTouchStart={() => selectCity(s)}
-                        className="w-full text-left px-4 py-3 text-white text-sm hover:bg-gray-700 active:bg-gray-600 flex items-center gap-2 border-b border-gray-700/50 last:border-0">
+                        onMouseDown={() => { setCity(s); setShowCitySuggestions(false) }} onTouchStart={() => { setCity(s); setShowCitySuggestions(false) }}
+                        className="w-full text-left px-4 py-3 text-white text-sm hover:bg-gray-700 flex items-center gap-2 border-b border-gray-700/50 last:border-0">
                         <span className="text-gray-400">📍</span>{s}
                       </button>
                     ))}
-
                     {city.trim().length > 0 && !isExactMatch(city, citySuggestions) && (
                       <button type="button"
-                        onMouseDown={() => { setShowCitySuggestions(false) }}
-                        onTouchStart={() => { setShowCitySuggestions(false) }}
-                        className="w-full text-left px-4 py-3 text-amber-400 text-sm hover:bg-gray-700 active:bg-gray-600 flex items-center gap-2 border-t border-gray-700">
-                        <span>➕</span>
-                        <span>Ajouter <strong>"{normalizeLocation(city)}"</strong></span>
+                        onMouseDown={() => setShowCitySuggestions(false)} onTouchStart={() => setShowCitySuggestions(false)}
+                        className="w-full text-left px-4 py-3 text-amber-400 text-sm hover:bg-gray-700 flex items-center gap-2 border-t border-gray-700">
+                        <span>➕</span><span>Ajouter <strong>"{normalizeLocation(city)}"</strong></span>
                       </button>
                     )}
                   </div>
@@ -276,11 +319,11 @@ export default function PostForm({ pseudo, onSuccess }: PostFormProps) {
 
               <button
                 type="submit"
-                disabled={loading || !photo || !barName.trim() || !city.trim()}
+                disabled={loading || compressing || !photo || !barName.trim() || !city.trim()}
                 className="w-full py-4 rounded-xl font-bold text-black text-base disabled:opacity-40"
                 style={{ background: 'linear-gradient(90deg, #d97706, #f59e0b)' }}
               >
-                {loading ? 'Envoi en cours...' : '🍺 Poster la pinte'}
+                {loading ? 'Envoi en cours...' : compressing ? 'Compression...' : '🍺 Poster la pinte'}
               </button>
             </form>
           </div>

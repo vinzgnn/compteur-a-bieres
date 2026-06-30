@@ -51,6 +51,23 @@ export async function POST(req: NextRequest) {
   const pseudo = await getPseudo()
   if (!pseudo) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
+  const supabase = createServerSupabase()
+
+  // Rate limiting : max 3 posts par 5 minutes
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+  const { count: recentCount } = await supabase
+    .from('posts')
+    .select('*', { count: 'exact', head: true })
+    .eq('pseudo', pseudo)
+    .gte('created_at', fiveMinutesAgo)
+
+  if ((recentCount ?? 0) >= 3) {
+    return NextResponse.json(
+      { error: 'Trop de posts en peu de temps ⏱ Attends quelques minutes.' },
+      { status: 429 }
+    )
+  }
+
   const formData = await req.formData()
   const photo = formData.get('photo') as File | null
   const bar_name = (formData.get('bar_name') as string)?.trim()
@@ -59,8 +76,6 @@ export async function POST(req: NextRequest) {
   if (!photo) return NextResponse.json({ error: 'Photo manquante' }, { status: 400 })
   if (!bar_name) return NextResponse.json({ error: 'Nom du bar manquant' }, { status: 400 })
   if (!city) return NextResponse.json({ error: 'Ville manquante' }, { status: 400 })
-
-  const supabase = createServerSupabase()
 
   // Numéro de pinte suivant
   const { count } = await supabase.from('posts').select('*', { count: 'exact', head: true })
@@ -188,7 +203,6 @@ async function sendMilestoneEmail(pintNumber: number, pseudo: string, bar_name: 
 
   const goal = parseInt(process.env.NEXT_PUBLIC_GOAL || '5000')
   const message = MILESTONE_MESSAGES[pintNumber] || `Pinte #${pintNumber} atteinte !`
-  const lieu = `${bar_name}, ${city}`
 
   const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
