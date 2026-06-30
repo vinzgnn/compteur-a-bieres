@@ -5,19 +5,35 @@
 :root {
   --background: #030712;
   --foreground: #f9fafb;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
 }
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent; /* supprime le flash bleu sur tap iOS */
 }
 
 body {
   background: #030712;
   color: #f9fafb;
+  overscroll-behavior: none; /* empêche le bounce iOS non voulu */
 }
 
-/* Scrollbar stylée */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: #111827; }
-::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #f59e0b; }
+/* Empêche le zoom iOS sur focus d'un input (nécessite font-size >= 16px) */
+input, textarea, select {
+  font-size: 16px !important;
+}
+
+/* Barre de navigation : prend en compte le bas de l'iPhone (notch, home indicator) */
+.nav-safe {
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+
+/* Scrollbar stylée (desktop uniquement) */
+@media (hover: hover) {
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #111827; }
+  ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #f59e0b; }
+}
