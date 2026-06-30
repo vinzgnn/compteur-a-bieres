@@ -81,7 +81,13 @@ export default function BarsMap() {
   }, [])
 
   useEffect(() => {
-    if (!mapRef.current || bars.length === 0 || mapInstance.current) return
+    if (!mapRef.current || bars.length === 0) return
+
+    // Détruire la carte existante avant d'en créer une nouvelle
+    if (mapInstance.current) {
+      mapInstance.current.remove()
+      mapInstance.current = null
+    }
 
     let cancelled = false
 
