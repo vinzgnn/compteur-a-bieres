@@ -1,94 +1,276 @@
-# 🍺 Road to 5000 Pintes
+# 🍺 Road to 5000 pintes
 
-Application web pour tracker les pintes du groupe.
-
-## Stack
-
-- **Next.js 14** (App Router) + TypeScript
-- **Supabase** (base de données PostgreSQL + stockage photos)
-- **Resend** (newsletter hebdomadaire)
-- **Vercel** (hébergement + cron job newsletter)
-- **Tailwind CSS**
+Application web privée de suivi de pintes pour un groupe d'amis. Objectif : atteindre 5 000 pintes ensemble.
 
 ---
 
-## Installation
+## Stack technique
 
-```bash
-npm install
-```
-
-Copie `.env.example` en `.env.local` et remplis les variables.
-
----
-
-## Setup Supabase
-
-1. Crée un projet sur [supabase.com](https://supabase.com)
-2. Va dans **SQL Editor** et exécute le fichier `supabase/schema.sql`
-3. Va dans **Storage** → crée un bucket `pints` → coche **Public bucket**
-4. Récupère tes clés dans **Settings → API** :
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY`
+| Couche | Technologie |
+|---|---|
+| Framework | [Next.js 14](https://nextjs.org/) (App Router) |
+| Langage | TypeScript |
+| Base de données | [Supabase](https://supabase.com/) (PostgreSQL + Storage + Realtime) |
+| Auth | Cookie HTTP-only (`biere_pseudo`) |
+| Style | [Tailwind CSS](https://tailwindcss.com/) |
+| Carte | [Leaflet.js](https://leafletjs.com/) + OpenStreetMap / Nominatim |
+| Emails | [Resend](https://resend.com/) |
+| Animations | [canvas-confetti](https://www.npmjs.com/package/canvas-confetti) |
+| Déploiement | [Vercel](https://vercel.com/) |
+| Cron | Vercel Cron Jobs |
 
 ---
 
-## Setup Resend (newsletter)
+## Fonctionnalités
 
-1. Crée un compte sur [resend.com](https://resend.com) (gratuit jusqu'à 3000 emails/mois)
-2. Ajoute ton domaine ou utilise `onboarding@resend.dev` pour tester
-3. Récupère ta clé API → `RESEND_API_KEY`
-4. Remplis `RESEND_FROM_EMAIL` avec l'adresse d'envoi
+### Feed
+- Poster une pinte avec photo (compression automatique côté client, max 1200px, 85% qualité)
+- Champ bar et ville séparés avec autocomplétion depuis l'historique
+- Numérotation automatique des pintes (#1, #2…)
+- Suppression de ses propres posts (double confirmation)
+- Feed paginé (20 posts par page)
+- **Realtime** : bannière d'alerte quand un autre membre poste
+- **Rate limiting** : max 10 posts par heure par utilisateur
+
+### Compteur
+- Barre de progression vers 5 000 pintes
+- Mise en avant des paliers (50, 100, 250, 500, 1000, 2000, 5000)
+- **Confettis** à chaque palier atteint
+
+### Classement
+- Classement hebdomadaire et all-time
+- **Vote Pinte du Mois** : chaque membre vote pour sa pinte préférée du mois en cours (1 vote/mois, modifiable)
+
+### Stats
+- Pintes du jour (fenêtre 12h → 12h)
+- Temps moyen entre 2 pintes par membre
+- Distribution horaire des posts
+- Top bar visité + top ville
+- **Carte interactive** des bars visités (Leaflet, 1 pin par ville, taille proportionnelle au nombre de pintes)
+
+### Profil
+- Page `/profil/[pseudo]` : grille de photos, stats perso (pintes / bars / villes / paliers), bar favori
+- Badges obtenus
+
+### Badges
+Attribués automatiquement lors du post :
+
+| Badge | Emoji | Condition |
+|---|---|---|
+| Premier post | 🥇 | 1er à avoir posté |
+| Centenaire | 💯 | A posté la 100ème pinte du groupe |
+| Explorateur | 📍 | Posté depuis 5 bars différents |
+| Vendredi | 📅 | A posté un vendredi |
+| Assidu | 🔥 | A posté 3 semaines de suite |
+
+### Newsletter hebdomadaire
+Envoi automatique chaque lundi à 9h par email à tous les membres avec :
+- Classement de la semaine
+- Nombre de pintes de la semaine
+- Total général + progression vers 5 000
+- Bar et ville les plus visités de la semaine
+
+---
+
+## Structure du projet
+compteur-a-bieres/
+
+├── app/
+
+│   ├── api/
+
+│   │   ├── auth/route.ts          # Login / logout
+
+│   │   ├── badges/route.ts        # GET badges d'un membre
+
+│   │   ├── bars/route.ts          # GET bars visités avec comptage
+
+│   │   ├── leaderboard/route.ts   # GET classement semaine / all-time
+
+│   │   ├── locations/route.ts     # GET autocomplétion bar / ville
+
+│   │   ├── newsletter/route.ts    # GET envoi newsletter (cron)
+
+│   │   ├── posts/
+
+│   │   │   ├── route.ts           # GET liste paginée / POST nouveau post
+
+│   │   │   └── [id]/route.ts      # DELETE un post
+
+│   │   ├── stats/route.ts         # GET statistiques
+
+│   │   └── votes/route.ts         # GET pinte du mois / POST voter
+
+│   ├── classement/page.tsx        # Page classement + vote pinte du mois
+
+│   ├── login/page.tsx             # Page de connexion
+
+│   ├── profil/[pseudo]/page.tsx   # Page profil par membre
+
+│   ├── stats/page.tsx             # Page statistiques
+
+│   ├── globals.css
+
+│   ├── layout.tsx
+
+│   └── page.tsx                   # Feed principal
+
+├── components/
+
+│   ├── BadgeList.tsx              # Affichage des badges
+
+│   ├── BarsMap.tsx                # Carte Leaflet des bars
+
+│   ├── Comments.tsx               # Commentaires sur les posts
+
+│   ├── Counter.tsx                # Barre de progression
+
+│   ├── FeedClient.tsx             # Feed realtime + confettis
+
+│   ├── Leaderboard.tsx            # Tableau classement
+
+│   ├── Navigation.tsx             # Barre de navigation
+
+│   ├── PinteDuMois.tsx            # Vote pinte du mois
+
+│   ├── PostCard.tsx               # Carte d'un post
+
+│   ├── PostForm.tsx               # Formulaire nouveau post
+
+│   ├── ReactionBar.tsx            # Réactions sur les posts
+
+│   └── StatsClient.tsx            # Statistiques interactives
+
+├── lib/
+
+│   ├── auth.ts                    # Helper getPseudo() (cookie)
+
+│   ├── supabase-client.ts         # Client Supabase navigateur (Realtime)
+
+│   ├── supabase-server.ts         # Client Supabase serveur (service role)
+
+│   └── utils.ts                   # formatDate, getWeekRange…
+
+├── emails/                        # Templates emails Resend
+
+├── vercel.json                    # Config cron Vercel
+
+└── next.config.ts
+
+---
+
+## Base de données (Supabase)
+
+### Table `posts`
+| Colonne | Type | Description |
+|---|---|---|
+| id | uuid | Clé primaire |
+| member_id | uuid | FK → members |
+| pseudo | text | Pseudo du membre |
+| photo_url | text | URL Supabase Storage |
+| pint_number | int4 | Numéro de la pinte (global) |
+| created_at | timestamptz | Date de publication |
+| is_milestone | bool | Vrai si palier atteint |
+| bar_name | text | Nom du bar |
+| city | text | Ville |
+
+### Table `members`
+| Colonne | Type | Description |
+|---|---|---|
+| id | uuid | Clé primaire |
+| pseudo | text | Pseudo unique |
+| email | text | Email (pour newsletter) |
+| password_hash | text | Hash bcrypt |
+
+### Table `member_badges`
+| Colonne | Type | Description |
+|---|---|---|
+| id | uuid | Clé primaire |
+| pseudo | text | Pseudo du membre |
+| badge | text | Identifiant du badge |
+| earned_at | timestamptz | Date d'obtention |
+
+### Table `votes_pinte_mois`
+| Colonne | Type | Description |
+|---|---|---|
+| id | uuid | Clé primaire |
+| post_id | uuid | FK → posts |
+| pseudo | text | Votant |
+| month | text | Format YYYY-MM |
+| created_at | timestamptz | Date du vote |
+
+### Table `reactions`
+Réactions emoji sur les posts.
+
+### Table `comments`
+Commentaires sur les posts.
+
+### Realtime
+La table `posts` a le Realtime activé (Publications dans le dashboard Supabase) pour le feed live.
 
 ---
 
 ## Variables d'environnement
 
 ```env
+# Supabase
 NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=xxxx
-SUPABASE_SERVICE_ROLE_KEY=xxxx
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
 
-INVITE_CODE=biere2024          # Code secret à partager avec les amis
-NEXT_PUBLIC_GOAL=5000          # Objectif de pintes
+# Auth cookie
+COOKIE_SECRET=un_secret_long_et_aléatoire
 
-RESEND_API_KEY=re_xxxx
-RESEND_FROM_EMAIL=newsletter@tondomaine.com
+# Resend (emails)
+RESEND_API_KEY=re_...
+NEWSLETTER_FROM=newsletter@tondomaine.com
+NEWSLETTER_TO=groupe@tondomaine.com
 
-CRON_SECRET=un_truc_long_et_random   # Protège la route /api/newsletter
+# Cron
+CRON_SECRET=un_secret_quelconque
+
+# Objectif
+NEXT_PUBLIC_GOAL=5000
 ```
 
 ---
 
-## Déploiement sur Vercel
+## Installation
+
+```bash
+git clone https://github.com/ton-user/compteur-a-bieres.git
+cd compteur-a-bieres
+npm install
+cp .env.example .env.local
+npm run dev
+```
+
+---
+
+## Déploiement (Vercel)
 
 1. Push le code sur GitHub
 2. Importe le repo sur [vercel.com](https://vercel.com)
 3. Ajoute toutes les variables d'env dans **Settings → Environment Variables**
 4. Deploy !
 
-Le cron job `vercel.json` enverra automatiquement la newsletter chaque lundi à 8h UTC.
+Le cron `vercel.json` enverra automatiquement la newsletter chaque lundi à 9h UTC.
 
 ---
 
-## Fonctionnalités
+## Authentification
 
-- **Feed** : photos des pintes avec lieu, pseudo et numéro de pinte
-- **Compteur** : barre de progression vers l'objectif
-- **Upload** : photo depuis la galerie ou l'appareil photo
-- **Classement** : global + hebdomadaire
-- **Newsletter** : email automatique chaque lundi avec le récap de la semaine
+Système custom (sans Supabase Auth) :
+- Login via pseudo + mot de passe
+- Cookie HTTP-only `biere_pseudo` posé par `/api/auth`
+- Helper `getPseudo()` dans `lib/auth.ts` côté serveur
+- Pas de JWT, pas de session Supabase
 
 ---
 
-## Dev local
+## Geocodage (carte)
 
-```bash
-npm run dev
-```
-
-Pour tester la newsletter manuellement :
-```bash
-curl -H "Authorization: Bearer TON_CRON_SECRET" http://localhost:3000/api/newsletter
-```
+- API Nominatim (OpenStreetMap) — gratuite, sans clé API
+- Geocodage par **ville uniquement** (plus fiable que par adresse de bar)
+- Cache localStorage (`biere_geocache_city_v1`) pour éviter les requêtes répétées
+- Délai 1100ms entre chaque requête (respect des CGU Nominatim)
