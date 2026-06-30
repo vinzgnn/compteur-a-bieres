@@ -26,7 +26,7 @@ const BADGE_DEFINITIONS = {
   assidu:        { label: "Assidu",       emoji: "🔥", desc: "A posté 3 semaines de suite" },
 }
 
-export type BadgeType = keyof typeof BADGE_DEFINITIONS
+type BadgeType = keyof typeof BADGE_DEFINITIONS
 
 // GET : récupérer les posts (paginés)
 export async function GET(req: NextRequest) {
@@ -222,4 +222,3 @@ async function sendMilestoneEmail(pintNumber: number, pseudo: string, location: 
   })
 }
 
-export { BADGE_DEFINITIONS }
