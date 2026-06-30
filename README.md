@@ -75,88 +75,43 @@ Envoi automatique chaque lundi à 9h par email à tous les membres avec :
 ## Structure du projet
 compteur-a-bieres/
 
-├── app/
+app/
+  api/
+    auth/route.ts          → Login / logout
+    badges/route.ts        → GET badges d'un membre
+    bars/route.ts          → GET bars visités avec comptage
+    leaderboard/route.ts   → GET classement semaine / all-time
+    locations/route.ts     → GET autocomplétion bar / ville
+    newsletter/route.ts    → GET envoi newsletter (cron)
+    posts/route.ts         → GET liste paginée / POST nouveau post
+    posts/[id]/route.ts    → DELETE un post
+    stats/route.ts         → GET statistiques
+    votes/route.ts         → GET pinte du mois / POST voter
+  classement/page.tsx      → Page classement + vote pinte du mois
+  login/page.tsx           → Page de connexion
+  profil/[pseudo]/page.tsx → Page profil par membre
+  stats/page.tsx           → Page statistiques
+  page.tsx                 → Feed principal
 
-│   ├── api/
+components/
+  BadgeList.tsx    → Affichage des badges
+  BarsMap.tsx      → Carte Leaflet des bars
+  Counter.tsx      → Barre de progression
+  FeedClient.tsx   → Feed realtime + confettis
+  Leaderboard.tsx  → Tableau classement
+  Navigation.tsx   → Barre de navigation
+  PinteDuMois.tsx  → Vote pinte du mois
+  PostCard.tsx     → Carte d'un post
+  PostForm.tsx     → Formulaire nouveau post
+  StatsClient.tsx  → Statistiques interactives
 
-│   │   ├── auth/route.ts          # Login / logout
+lib/
+  auth.ts              → Helper getPseudo() (cookie)
+  supabase-client.ts   → Client Supabase navigateur (Realtime)
+  supabase-server.ts   → Client Supabase serveur (service role)
+  utils.ts             → formatDate, getWeekRange…
 
-│   │   ├── badges/route.ts        # GET badges d'un membre
-
-│   │   ├── bars/route.ts          # GET bars visités avec comptage
-
-│   │   ├── leaderboard/route.ts   # GET classement semaine / all-time
-
-│   │   ├── locations/route.ts     # GET autocomplétion bar / ville
-
-│   │   ├── newsletter/route.ts    # GET envoi newsletter (cron)
-
-│   │   ├── posts/
-
-│   │   │   ├── route.ts           # GET liste paginée / POST nouveau post
-
-│   │   │   └── [id]/route.ts      # DELETE un post
-
-│   │   ├── stats/route.ts         # GET statistiques
-
-│   │   └── votes/route.ts         # GET pinte du mois / POST voter
-
-│   ├── classement/page.tsx        # Page classement + vote pinte du mois
-
-│   ├── login/page.tsx             # Page de connexion
-
-│   ├── profil/[pseudo]/page.tsx   # Page profil par membre
-
-│   ├── stats/page.tsx             # Page statistiques
-
-│   ├── globals.css
-
-│   ├── layout.tsx
-
-│   └── page.tsx                   # Feed principal
-
-├── components/
-
-│   ├── BadgeList.tsx              # Affichage des badges
-
-│   ├── BarsMap.tsx                # Carte Leaflet des bars
-
-│   ├── Comments.tsx               # Commentaires sur les posts
-
-│   ├── Counter.tsx                # Barre de progression
-
-│   ├── FeedClient.tsx             # Feed realtime + confettis
-
-│   ├── Leaderboard.tsx            # Tableau classement
-
-│   ├── Navigation.tsx             # Barre de navigation
-
-│   ├── PinteDuMois.tsx            # Vote pinte du mois
-
-│   ├── PostCard.tsx               # Carte d'un post
-
-│   ├── PostForm.tsx               # Formulaire nouveau post
-
-│   ├── ReactionBar.tsx            # Réactions sur les posts
-
-│   └── StatsClient.tsx            # Statistiques interactives
-
-├── lib/
-
-│   ├── auth.ts                    # Helper getPseudo() (cookie)
-
-│   ├── supabase-client.ts         # Client Supabase navigateur (Realtime)
-
-│   ├── supabase-server.ts         # Client Supabase serveur (service role)
-
-│   └── utils.ts                   # formatDate, getWeekRange…
-
-├── emails/                        # Templates emails Resend
-
-├── vercel.json                    # Config cron Vercel
-
-└── next.config.ts
-
+vercel.json   → Config cron Vercel
 ---
 
 ## Base de données (Supabase)
