@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getPseudo } from '@/lib/auth'
 import Navigation from '@/components/Navigation'
 import Leaderboard from '@/components/Leaderboard'
+import PinteduMois from '@/components/PinteDuMois'
 
 export default async function ClassementPage() {
   const pseudo = await getPseudo()
@@ -16,6 +17,9 @@ export default async function ClassementPage() {
           <h1 className="text-2xl font-black text-white">Classement 🏆</h1>
           <p className="text-gray-500 text-sm mt-1">Qui boit le plus ?</p>
         </div>
+
+        {/* Pinte du mois */}
+        <PinteduMois pseudo={pseudo} />
 
         {/* Classement hebdo */}
         <div>
