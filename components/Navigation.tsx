@@ -9,6 +9,7 @@ export default function Navigation({ pseudo }: { pseudo: string }) {
   const links = [
     { href: '/', label: '🍺 Feed' },
     { href: '/classement', label: '🏆 Classement' },
+    { href: '/stats', label: '📊 Stats' },
   ]
 
   return (
