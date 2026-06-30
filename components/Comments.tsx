@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { formatDate } from '@/lib/utils'
 
 interface Comment {
@@ -21,12 +21,15 @@ export default function Comments({ postId, pseudo }: CommentsProps) {
   const [loaded, setLoaded] = useState(false)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [error, setError] = useState('')
 
   async function load() {
     if (loaded) return
-    const res = await fetch(`/api/comments?post_id=${postId}`)
-    const data = await res.json()
-    setComments(data.comments || [])
+    try {
+      const res = await fetch(`/api/comments?post_id=${postId}`)
+      const data = await res.json()
+      setComments(data.comments || [])
+    } catch {}
     setLoaded(true)
   }
 
@@ -39,31 +42,38 @@ export default function Comments({ postId, pseudo }: CommentsProps) {
     e.preventDefault()
     if (!input.trim() || sending) return
     setSending(true)
+    setError('')
 
-    const res = await fetch('/api/comments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ post_id: postId, content: input.trim() }),
-    })
-    const data = await res.json()
-    setSending(false)
+    try {
+      const res = await fetch('/api/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_id: postId, content: input.trim() }),
+      })
+      const data = await res.json()
 
-    if (res.ok) {
-      setComments(prev => [...prev, data.comment])
-      setInput('')
+      if (res.ok) {
+        setComments(prev => [...prev, data.comment])
+        setInput('')
+      } else {
+        setError(data.error || 'Erreur')
+      }
+    } catch {
+      setError('Erreur réseau')
+    } finally {
+      setSending(false)
     }
   }
 
   return (
     <div className="border-t border-gray-800">
-      {/* Toggle */}
       <button
         onClick={toggle}
         className="w-full px-4 py-2 text-left text-gray-500 text-sm hover:text-gray-300 transition-colors flex items-center gap-2"
       >
         <span>💬</span>
         <span>
-          {comments.length > 0 || loaded
+          {loaded && comments.length > 0
             ? `${comments.length} commentaire${comments.length > 1 ? 's' : ''}`
             : 'Commenter'}
         </span>
@@ -72,7 +82,6 @@ export default function Comments({ postId, pseudo }: CommentsProps) {
 
       {open && (
         <div className="px-4 pb-4 space-y-3">
-          {/* Liste des commentaires */}
           {comments.length > 0 ? (
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {comments.map(c => (
@@ -86,7 +95,8 @@ export default function Comments({ postId, pseudo }: CommentsProps) {
             <p className="text-gray-600 text-sm">Aucun commentaire. Sois le premier !</p>
           )}
 
-          {/* Formulaire */}
+          {error && <p className="text-red-400 text-xs">{error}</p>}
+
           <form onSubmit={submit} className="flex gap-2">
             <input
               type="text"

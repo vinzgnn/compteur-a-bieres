@@ -22,6 +22,7 @@ export default function ReactionBar({ postId, pseudo }: ReactionBarProps) {
     fetch(`/api/reactions?post_id=${postId}`)
       .then(r => r.json())
       .then(d => setReactions(d.reactions || []))
+      .catch(() => {})
   }, [postId])
 
   async function toggle(emoji: string) {
@@ -36,13 +37,22 @@ export default function ReactionBar({ postId, pseudo }: ReactionBarProps) {
       setReactions(prev => [...prev, { emoji, pseudo }])
     }
 
-    await fetch('/api/reactions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ post_id: postId, emoji }),
-    })
-
-    setLoading(null)
+    try {
+      await fetch('/api/reactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_id: postId, emoji }),
+      })
+    } catch {
+      // Rollback en cas d'erreur
+      if (hasReacted) {
+        setReactions(prev => [...prev, { emoji, pseudo }])
+      } else {
+        setReactions(prev => prev.filter(r => !(r.pseudo === pseudo && r.emoji === emoji)))
+      }
+    } finally {
+      setLoading(null)
+    }
   }
 
   function getCount(emoji: string) {
