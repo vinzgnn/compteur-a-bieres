@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, lazy, Suspense } from 'react'
+import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 
 // Import dynamique pour éviter les erreurs SSR avec Leaflet
@@ -14,6 +14,17 @@ interface StatsData {
   hourlyDistribution: Record<string, number>
   peakHour: number
   totalPosts: number
+}
+
+interface Bar {
+  bar_name: string
+  city: string
+  count: number
+}
+
+interface TopStats {
+  topBar: Bar | null
+  topCity: { city: string; count: number } | null
 }
 
 function formatDuration(minutes: number | null): string {
@@ -32,6 +43,7 @@ export default function StatsClient({ currentPseudo }: { currentPseudo: string }
   const [stats, setStats] = useState<StatsData | null>(null)
   const [filter, setFilter] = useState<string>('all')
   const [loading, setLoading] = useState(true)
+  const [topStats, setTopStats] = useState<TopStats>({ topBar: null, topCity: null })
 
   useEffect(() => {
     setLoading(true)
@@ -40,6 +52,26 @@ export default function StatsClient({ currentPseudo }: { currentPseudo: string }
       .then(d => { setStats(d); setLoading(false) })
       .catch(() => setLoading(false))
   }, [filter])
+
+  useEffect(() => {
+    fetch('/api/bars')
+      .then(r => r.json())
+      .then(({ bars }: { bars: Bar[] }) => {
+        if (!bars?.length) return
+        // Top bar : déjà trié par count desc
+        const topBar = bars[0]
+        // Top city : agrégation par ville
+        const cityMap: Record<string, number> = {}
+        for (const b of bars) {
+          cityMap[b.city] = (cityMap[b.city] || 0) + b.count
+        }
+        const topCity = Object.entries(cityMap)
+          .sort(([, a], [, b]) => b - a)
+          .map(([city, count]) => ({ city, count }))[0] || null
+        setTopStats({ topBar, topCity })
+      })
+      .catch(() => {})
+  }, [])
 
   if (loading || !stats) {
     return (
@@ -177,6 +209,31 @@ export default function StatsClient({ currentPseudo }: { currentPseudo: string }
           </div>
         )}
       </div>
+
+      {/* Top bar & top ville */}
+      {(topStats.topBar || topStats.topCity) && (
+        <div className="grid grid-cols-2 gap-4">
+          {topStats.topBar && (
+            <div className="bg-gray-900 rounded-2xl p-5 border border-gray-800">
+              <p className="text-gray-500 text-xs uppercase tracking-wider mb-3">🍺 Bar le plus visité</p>
+              <p className="text-white font-black text-lg leading-tight">{topStats.topBar.bar_name}</p>
+              <p className="text-gray-500 text-xs mt-1">📍 {topStats.topBar.city}</p>
+              <p className="text-amber-400 font-bold text-2xl mt-2">{topStats.topBar.count}
+                <span className="text-gray-600 text-sm font-normal ml-1">pinte{topStats.topBar.count > 1 ? 's' : ''}</span>
+              </p>
+            </div>
+          )}
+          {topStats.topCity && (
+            <div className="bg-gray-900 rounded-2xl p-5 border border-gray-800">
+              <p className="text-gray-500 text-xs uppercase tracking-wider mb-3">📍 Ville la plus bue</p>
+              <p className="text-white font-black text-lg leading-tight">{topStats.topCity.city}</p>
+              <p className="text-amber-400 font-bold text-2xl mt-2">{topStats.topCity.count}
+                <span className="text-gray-600 text-sm font-normal ml-1">pinte{topStats.topCity.count > 1 ? 's' : ''}</span>
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Carte des bars */}
       <BarsMap />

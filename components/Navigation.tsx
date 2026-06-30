@@ -24,7 +24,7 @@ export default function Navigation({ pseudo }: { pseudo: string }) {
   return (
     <>
       {/* Mobile : barre fixe en bas */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-gray-950/95 backdrop-blur border-t border-gray-800 nav-safe sm:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-gray-950/95 backdrop-blur border-t border-gray-800 sm:hidden">
         <div className="flex justify-around px-2 pt-2">
           {links.map(link => {
             const active = pathname === link.href
@@ -41,7 +41,6 @@ export default function Navigation({ pseudo }: { pseudo: string }) {
             )
           })}
 
-          {/* Pseudo + déconnexion */}
           <div className="relative">
             <button
               onClick={() => setShowLogout(o => !o)}
@@ -56,6 +55,13 @@ export default function Navigation({ pseudo }: { pseudo: string }) {
                 <div className="px-4 py-2 border-b border-gray-700">
                   <p className="text-white font-bold text-sm">{pseudo}</p>
                 </div>
+                <Link
+                  href={`/profil/${encodeURIComponent(pseudo)}`}
+                  onClick={() => setShowLogout(false)}
+                  className="w-full px-4 py-3 text-gray-300 text-sm font-medium hover:bg-gray-700 text-left flex items-center gap-2"
+                >
+                  👤 Mon profil
+                </Link>
                 <button
                   onClick={logout}
                   className="w-full px-4 py-3 text-red-400 text-sm font-medium hover:bg-gray-700 text-left"
@@ -96,6 +102,13 @@ export default function Navigation({ pseudo }: { pseudo: string }) {
 
             {showLogout && (
               <div className="absolute top-full right-0 mt-2 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-xl min-w-[140px]">
+                <Link
+                  href={`/profil/${encodeURIComponent(pseudo)}`}
+                  onClick={() => setShowLogout(false)}
+                  className="w-full px-4 py-3 text-gray-300 text-sm font-medium hover:bg-gray-700 text-left flex items-center gap-2"
+                >
+                  👤 Mon profil
+                </Link>
                 <button
                   onClick={logout}
                   className="w-full px-4 py-3 text-red-400 text-sm font-medium hover:bg-gray-700 text-left"
